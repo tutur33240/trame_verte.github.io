@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- LEAFLET CSS LINK -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+
+    <!-- LEAFLET JS LINK -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+    <!-- CHART.JS LINK -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <title>GR 20</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            width: 99.5%;
+            height: 99vh;
+            border: 5px solid #006400;
+        }
+
+        #map-title {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            font-weight: bold;
+            color: #0000a8;
+            z-index: 1000;
+        }
+
+       
+       
+        .legend {
+            padding: 10px;
+            border: 4px solid #006400;
+            background-color: #ffffff; /* Fond blanc pour la légende */
+        }
+
+        .legend i {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            margin-right: 5px;
+        }
+		
+		.legend .ETAPE_GR20-line {
+			background-color: #0033bc;
+			height: 2px;
+			width: 20px;
+			display: inline-block;
+			margin-right: 5px;
+		}
+
+        .legend .corridor-line {
+            background-color: #468146;
+            height: 2px;
+            width: 20px;
+            display: inline-block;
+            margin-right: 5px;
+        }
+		
+		/* Ajoutez cette partie dans votre balise style (style tag) existante */
+			.legend .parc-polygon {
+				background-color: rgba(0, 0, 255, 0.5); /* Couleur bleue avec une transparence de 50% */
+				height: 20px; /* Ajustez la hauteur selon vos besoins */
+				width: 20px; /* Ajustez la largeur selon vos besoins */
+				display: inline-block;
+				margin-right: 5px;
+			}
+
+        .legend .reservoir-legend {
+            background-color: #079c88;
+            height: 20px;
+            width: 20px;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .legend .sites-legend {
+            background-color: #e1ce2f;
+            height: 20px;
+            width: 20px;
+            display: inline-block;
+            margin-right: 5px;
+        }
+		
+    </style>
+    </style>
+</head>
+
+<body>
+    <div id="map">
+        <div id="map-title">TRAME VERTE DU PARC NATIONAL ET NATUREL DE CORSE </div>
+    </div>
+
+    <script>
+        var map = L.map("map").setView([42.11156209079745, 9.077056951496923], 9);
+        var osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        // Fond de carte OSM Relief (utilisé pour la démo)
+        var osmRelief = L.tileLayer("http://a.tile.opentopomap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        var url_parc = 'http://localhost:8080/geoserver/postgrsql/wms';
+        var parc = createWMSLayer('PARC', 0.5, '93D1F');
+
+        var url_CORRIDOR = 'http://localhost:8080/geoserver/postgrsql/wms';
+        var CORRIDOR = createWMSLayer('Corridor_Corsica', 0.7, '31B54B');
+
+        var url_RESERVOIR = 'http://localhost:8080/geoserver/postgrsql/wms';
+        var RESERVOIR = createWMSLayer('Réparée_dec', 0.7, '31B54B');
+
+        var url_SITES = 'http://localhost:8080/geoserver/postgrsql/wms';
+        var SITES = createWMSLayer('sites_inscrits', 0.7, '31B54B');
+
+        var url_ETAPE = 'http://localhost:8080/geoserver/postgrsql/wms';
+        var ETAPE_GR20 = L.tileLayer.wms(url_ETAPE, {
+            layers: 'ETAPE_GR20',
+            format: 'image/png',
+            transparent: true,
+            attribution: "mylayer",
+            crs: L.CRS.EPSG2154,
+            opacity: 0.7,
+            color: '31B54B',
+            borderColor: '31B54B'
+        });
+
+        function createWMSLayer(layerName, opacity, color) {
+            return L.tileLayer.wms('http://localhost:8080/geoserver/postgrsql/wms', {
+                layers: layerName,
+                format: 'image/png',
+                transparent: true,
+                attribution: "mylayer",
+                crs: L.CRS.EPSG2154,
+                opacity: opacity,
+                color: color,
+                borderColor: color
+            });
+        }
+
+        var baseLayers = {
+            "OpenStreetMap": osm,
+            "OSM Relief": osmRelief
+        };
+
+        var overlays = {
+            "Parc": parc,
+            "Corridor écologique": CORRIDOR,
+            "ETAPE_GR20": ETAPE_GR20,
+            "RESERVOIR": RESERVOIR,
+            "SITES": SITES,
+        };
+
+        var legend = L.control({ position: 'bottomright' });
+
+        legend.onAdd = function () {
+            var div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = '<div id="legend-container"></div>';
+            return div;
+        };
+
+        legend.addTo(map);
+
+        function updateLegend() {
+            var activeLayers = [];
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.TileLayer.WMS && map.hasLayer(layer)) {
+                    activeLayers.push(layer.options.layers);
+                }
+            });
+
+           var legendContent = "<h4>Légende</h4>";
+    activeLayers.forEach(function (layer) {
+        switch (layer) {
+           case 'ETAPE_GR20':
+    legendContent += '<i class="legend-icon ETAPE_GR20-line"></i><span>ETAPE_GR20</span>';
+    break;
+            case 'Corridor_Corsica':
+                legendContent += '<i class="legend-icon corridor-line"></i><span>Corridor écologique</span>';
+                break;
+            case 'Réparée_dec':
+                legendContent += '<i class="legend-icon reservoir-legend"></i><span>RESERVOIR</span>';
+                break;
+            case 'sites_inscrits':
+                legendContent += '<i class="legend-icon sites-legend"></i><span>SITES</span>';
+                break;
+            case 'ETAPE_GR20':
+                legendContent += '<i style="background: #31B54B"></i><span>ETAPE_GR20</span>';
+                break;
+			case 'PARC':
+				legendContent += '<i class="legend-icon parc-polygon"></i><span>Parc</span>';
+			break;
+                }
+            });
+
+            document.getElementById('legend-container').innerHTML = legendContent;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () { });
+
+        map.on('layeradd', function (event) {
+            console.log('Layer added:', event.layer);
+            updateLegend();
+        });
+
+        map.on('layerremove', function (event) {
+            console.log('Layer removed:', event.layer);
+            updateLegend();
+        });
+
+        L.control.layers(baseLayers, overlays).addTo(map);
+
+        L.control.scale().addTo(map);
+
+        osm.addTo(map); // Fond de carte par défaut
+        parc.addTo(map);
+        CORRIDOR.addTo(map);
+        ETAPE_GR20.addTo(map);
+        RESERVOIR.addTo(map);
+        SITES.addTo(map);
+
+        function switchBasemap(basemap) {
+            map.eachLayer(function (layer) {
+                map.removeLayer(layer);
+            });
+
+            basemap.addTo(map);
+
+            for (var key in overlays) {
+                overlays[key].addTo(map);
+            }
+        }
+
+        function switchToOSM() {
+            switchBasemap(osm);
+        }
+
+        function switchToOSMRelief() {
+            switchBasemap(osmRelief);
+        }
+    </script>
+</body>
+
+</html>
